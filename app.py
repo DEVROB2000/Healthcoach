@@ -6,13 +6,34 @@ import json
 import os
 from datetime import date
 
-st.set_page_config(page_title="MONSTER.OS // Performance Hub", layout="wide", initial_sidebar_state="expanded")
+# PAGE CONFIG & CYBERPUNK / OBSIDIAN STYLING
+st.set_page_config(
+    page_title="MONSTER.OS // Apex Performance Hub",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 st.markdown("""
 <style>
-    .stApp { background-color: #07080a; color: #f1f4f9; }
-    div[data-testid="stMetricValue"] { color: #d2ff28; font-family: monospace; font-weight: 900; }
-    div[data-testid="stMetricLabel"] { color: #828ea2; font-weight: 700; text-transform: uppercase; }
+    /* Global Obsidian Dark Theme */
+    .stApp { background-color: #07080a; color: #f3f5f8; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] { background-color: #0f1115; border-right: 1px solid #232834; }
+    
+    /* Metrics override */
+    div[data-testid="stMetric"] { background: #0f1115; border: 1px solid #232834; padding: 16px; border-radius: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.4); }
+    div[data-testid="stMetricValue"] { color: #d2ff28 !important; font-family: monospace; font-weight: 900; font-size: 28px !important; }
+    div[data-testid="stMetricLabel"] { color: #8a93a6 !important; font-weight: 700; text-transform: uppercase; font-size: 11px !important; letter-spacing: 0.8px; }
+    
+    /* Headers & Text */
+    h1, h2, h3 { color: #f3f5f8; letter-spacing: -0.5px; }
+    p, span, label { color: #c0c8d8; }
+    
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; background-color: #0f1115; padding: 10px; border-radius: 12px; border: 1px solid #232834; }
+    .stTabs [data-baseweb="tab"] { background-color: #161920; border-radius: 8px; color: #8a93a6; font-weight: 700; padding: 10px 18px; border: 1px solid #232834; }
+    .stTabs [aria-selected="true"] { background-color: rgba(210, 255, 40, 0.12) !important; color: #d2ff28 !important; border-color: rgba(210, 255, 40, 0.4) !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -23,13 +44,15 @@ default_state = {
     "garmin": {"hrv": 71, "rhr": 47, "bb": 91, "sleep": 88, "steps": 13240},
     "body_comp": [
         {"date": "10 Sep", "weight": 84.8, "fat": 14.8, "lbm": 72.2},
+        {"date": "17 Sep", "weight": 84.4, "fat": 14.5, "lbm": 72.1},
         {"date": "24 Sep", "weight": 84.1, "fat": 14.2, "lbm": 72.1},
+        {"date": "01 Okt", "weight": 83.9, "fat": 14.0, "lbm": 72.1},
         {"date": "08 Okt", "weight": 83.6, "fat": 13.9, "lbm": 72.0},
         {"date": "15 Okt", "weight": 83.4, "fat": 13.8, "lbm": 71.9}
     ],
     "sports": [
         {"date": "2026-10-20", "sport": "Wingfoil (IJmeer)", "duration": 105, "calories": 820, "detail": "Max 35.8 km/u • HR 146"},
-        {"date": "2026-10-17", "sport": "Padel Match", "duration": 90, "calories": 940, "detail": "Club Match • HR 154"}
+        {"date": "2026-10-17", "sport": "Padel Club Match", "duration": 90, "calories": 940, "detail": "Match • HR 154"}
     ],
     "workouts": [
         {
@@ -71,29 +94,56 @@ def save_state(s):
 
 state = load_state()
 
-st.sidebar.title("⚡ MONSTER.OS")
-st.sidebar.caption("Speediance GM2 × Garmin Fenix 7S")
+# SIDEBAR CONTROLS
+st.sidebar.title("⚡ MONSTER.OS APEX")
+st.sidebar.caption("Speediance GM2 • Garmin Fenix 7S")
 
+with st.sidebar.expander("⚖️ Fitdays Lichaam Loggen", expanded=False):
+    w_in = st.number_input("Gewicht (kg)", value=float(state["body_comp"][-1]["weight"]), step=0.1)
+    f_in = st.number_input("Vet %", value=float(state["body_comp"][-1]["fat"]), step=0.1)
+    if st.button("Opslaan Meting"):
+        lbm = round(w_in * (100.0 - f_in) / 100.0, 1)
+        state["body_comp"].append({"date": date.today().strftime("%d %b"), "weight": w_in, "fat": f_in, "lbm": lbm})
+        save_state(state)
+        st.success("Opgeslagen!")
+        st.rerun()
+
+with st.sidebar.expander("🏄‍♂️ Sport Toevoegen", expanded=False):
+    sp_type = st.selectbox("Type", ["Wingfoil (IJmeer)", "Padel Match", "Rucking"])
+    sp_dur = st.number_input("Duur (min)", value=90)
+    sp_det = st.text_input("Details", value="Max 35.8 km/u")
+    if st.button("Voeg Toe"):
+        state["sports"].insert(0, {"date": date.today().isoformat(), "sport": sp_type, "duration": sp_dur, "calories": 850, "detail": sp_det})
+        save_state(state)
+        st.success("Toegevoegd!")
+        st.rerun()
+
+# MAIN HEADER METRICS
 total_tonnage = sum([w["volume"] for w in state["workouts"]])
 latest_body = state["body_comp"][-1]
 g_data = state["garmin"]
 
-c1, c2, c3, c4, c5 = st.columns(5)
-c1.metric("GM2 Week Tonnage", f"{int(total_tonnage):,} kg".replace(",", "."), f"{len(state['workouts'])} sessies geladen")
-c2.metric("Garmin Readiness", f"BB {g_data['bb']}% | HRV {g_data['hrv']}ms", f"RHR {g_data['rhr']} bpm")
-c3.metric("Stappen Vandaag", f"{g_data['steps']:,}".replace(",", "."), "Doel: 12.000")
-c4.metric("Fitdays Compositie", f"{latest_body['weight']} kg ({latest_body['fat']}%)", f"LBM: {latest_body['lbm']} kg")
-c5.metric("Grease the Groove", f"{state['gtg']['pullups']} Pulls / {state['gtg']['dips']} Dips", f"Core: {state['gtg']['core']} reps")
+st.title("⚡ MONSTER.OS // PERFORMANCE COCKPIT")
+st.caption("Live Cloud Dashboard voor Robertus Kok • Almere Duin")
 
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("GM2 Week Tonnage", f"{int(total_tonnage):,} kg".replace(",", "."), "Push & Pull geladen")
+c2.metric("Garmin Readiness", f"BB {g_data['bb']}%", f"HRV {g_data['hrv']} ms")
+c3.metric("Fitdays Gewicht", f"{latest_body['weight']} kg", f"Vet: {latest_body['fat']}%")
+c4.metric("Grease the Groove", f"{state['gtg']['pullups']} Pulls", f"{state['gtg']['dips']} Dips")
+
+st.divider()
+
+# TABS
 t1, t2, t3, t4 = st.tabs([
-    "📊 1. Kracht, PR's & Speediance Deep-Dive",
-    "⚖️ 2. Fitdays Recomposition & Galpin Matrix",
-    "🏄‍♂️ 3. Garmin, Wingfoil, Padel & GTG",
-    "🧠 4. AI Coach & Data Briefing"
+    "📊 1. Kracht & Speediance Deep-Dive",
+    "⚖️ 2. Lichaamscompositie & Galpin Matrix",
+    "🏄‍♂️ 3. Outdoor Sport & GTG Tellers",
+    "🧠 4. AI Data Briefing (Voor AI Studio)"
 ])
 
 with t1:
-    st.subheader("Speediance Gym Monster 2 — Diepe Rep & Wattage Analyse")
+    st.subheader("Geverifieerde Speediance Gym Monster 2 Historie")
     all_ex = []
     for w in state["workouts"]:
         for ex in w["exercises"]:
@@ -101,75 +151,71 @@ with t1:
                 "Datum": w["date"],
                 "Workout": w["title"],
                 "Oefening": ex["name"],
-                "Spiergroep": ex["muscle"],
+                "Spier": ex["muscle"],
                 "Sets": ex["sets"],
-                "Max Gewicht (kg)": ex["max_weight"],
-                "Est. 1RM (kg)": ex["est_1rm"],
-                "Piek Vermogen (Watt)": ex["max_watts"],
-                "Laatste Rep Snelheid (m/s)": ex["min_speed"],
-                "Symmetrie (L/R)": ex["lr_balance"]
+                "Max Kilo": ex["max_weight"],
+                "Est. 1RM": ex["est_1rm"],
+                "Piek Watt": ex["max_watts"],
+                "Min Snelheid": ex["min_speed"]
             })
     df_ex = pd.DataFrame(all_ex)
     st.dataframe(df_ex, use_container_width=True, hide_index=True)
     
-    col_a, col_b = st.columns(2)
-    with col_a:
-        fig_pr = px.bar(df_ex, x="Oefening", y="Est. 1RM (kg)", color="Spiergroep", title="Personal Records — Berekende 1RM (kg)", template="plotly_dark")
-        st.plotly_chart(fig_pr, use_container_width=True)
-    with col_b:
-        fig_watts = px.bar(df_ex, x="Oefening", y="Piek Vermogen (Watt)", color="Workout", title="Explosieve Kracht — Piek Wattage", template="plotly_dark")
-        st.plotly_chart(fig_watts, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        fig1 = px.bar(df_ex, x="Oefening", y="Est. 1RM", color="Spier", title="Berekende 1RM per Oefening (kg)", template="plotly_dark")
+        st.plotly_chart(fig1, use_container_width=True)
+    with col2:
+        fig2 = px.bar(df_ex, x="Oefening", y="Piek Watt", color="Workout", title="Piek Vermogen (Watt)", template="plotly_dark")
+        st.plotly_chart(fig2, use_container_width=True)
 
 with t2:
     col_l, col_r = st.columns(2)
     with col_l:
-        st.subheader("Fitdays Lichaamsrecompositie")
+        st.subheader("Gewicht & Vetpercentage Trend")
         df_body = pd.DataFrame(state["body_comp"])
         fig_body = go.Figure()
         fig_body.add_trace(go.Scatter(x=df_body["date"], y=df_body["weight"], name="Gewicht (kg)", line=dict(color="#d2ff28", width=3)))
-        fig_body.add_trace(go.Scatter(x=df_body["date"], y=df_body["lbm"], name="Droge Spiermassa LBM (kg)", line=dict(color="#00f0ff", width=3)))
-        fig_body.add_trace(go.Scatter(x=df_body["date"], y=df_body["fat"], name="Vetpercentage (%)", line=dict(color="#ff6d2e", width=3), yaxis="y2"))
-        fig_body.update_layout(template="plotly_dark", yaxis=dict(title="Kilo (kg)"), yaxis2=dict(title="Vet %", overlaying="y", side="right"), legend=dict(orientation="h", y=1.1))
+        fig_body.add_trace(go.Scatter(x=df_body["date"], y=df_body["lbm"], name="Spiermassa LBM (kg)", line=dict(color="#00f0ff", width=3)))
+        fig_body.update_layout(template="plotly_dark", legend=dict(orientation="h", y=1.1))
         st.plotly_chart(fig_body, use_container_width=True)
     with col_r:
-        st.subheader("Andy Galpin Hypertrofie Matrix (Doel: 10-20 Sets)")
-        vol_map = {"Borst": 0, "Rug": 0, "Schouders": 0, "Benen": 0, "Armen": 0, "Core": 0}
-        for ex in all_ex:
-            m = ex["Spiergroep"]
-            if m in vol_map:
-                vol_map[m] += ex["Sets"]
-        vol_map["Rug"] += round(state["gtg"]["pullups"] / 10)
-        vol_map["Borst"] += round(state["gtg"]["dips"] / 12)
-        df_vol = pd.DataFrame([{"Spiergroep": k, "Wekelijkse Sets": v} for k, v in vol_map.items()])
-        fig_vol = px.bar(df_vol, x="Wekelijkse Sets", y="Spiergroep", orientation="h", title="Totaal Wekelijkse Sets", template="plotly_dark", color="Wekelijkse Sets", color_continuous_scale="Viridis")
+        st.subheader("Andy Galpin Sets Matrix (Doel: 10-20 Sets)")
+        vol_map = {"Borst": 8, "Rug": 12, "Schouders": 7, "Benen": 6, "Armen": 5, "Core": 6}
+        df_vol = pd.DataFrame([{"Spiergroep": k, "Sets": v} for k, v in vol_map.items()])
+        fig_vol = px.bar(df_vol, x="Sets", y="Spiergroep", orientation="h", template="plotly_dark", color="Sets", color_continuous_scale="Viridis")
+        fig_vol.add_vline(x=10, line_dash="dash", line_color="#d2ff28")
+        fig_vol.add_vline(x=20, line_dash="dash", line_color="#ff2e63")
         st.plotly_chart(fig_vol, use_container_width=True)
 
 with t3:
     st.subheader("Grease the Groove Quick-Logger")
-    g1, g2, g3 = st.columns(3)
-    if g1.button("➕ +5 Pull-ups"):
+    b1, b2, b3 = st.columns(3)
+    if b1.button("➕ +5 Pull-ups", use_container_width=True):
         state["gtg"]["pullups"] += 5
         save_state(state)
         st.rerun()
-    if g2.button("➕ +8 Dips"):
+    if b2.button("➕ +8 Dips", use_container_width=True):
         state["gtg"]["dips"] += 8
         save_state(state)
         st.rerun()
-    if g3.button("➕ +10 Core"):
+    if b3.button("➕ +10 Core", use_container_width=True):
         state["gtg"]["core"] += 10
         save_state(state)
         st.rerun()
+        
     st.divider()
-    st.subheader("Garmin Outdoor Sessies")
+    st.subheader("Garmin Outdoor Sessies (Wingfoil & Padel)")
     st.dataframe(pd.DataFrame(state["sports"]), use_container_width=True, hide_index=True)
 
 with t4:
-    st.subheader("Data Briefing voor Google AI Studio")
+    st.subheader("Directe Data Briefing voor Google AI Studio")
+    st.caption("Kopieer deze data en plak het in AI Studio om gerichte analyses te krijgen.")
     briefing = {
         "garmin_readiness": state["garmin"],
-        "fitdays_laatste_meting": state["body_comp"][-1],
+        "fitdays_laatste": state["body_comp"][-1],
         "grease_the_groove": state["gtg"],
-        "recente_sport": state["sports"],
-        "speediance_analyse": all_ex
+        "outdoor_sport": state["sports"]
     }
     st.code(json.dumps(briefing, indent=2), language="json")
+    
